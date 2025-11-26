@@ -24,6 +24,8 @@ jobs:
           set +e  # Don't exit on error immediately
 
           git remote add upstream https://github.com/aseprite/aseprite.git
+          # Fetch everything from upstream
+          git fetch upstream
           git fetch upstream --tags
 
           # Get latest upstream tag with better parsing
