@@ -6,100 +6,100 @@ on:
   workflow_dispatch: # Manual trigger
 
 jobs:
-  check-and-build:
-    runs-on: ubuntu-latest
-    outputs:
-      should_build: ${{ steps.check.outputs.should_build }}
-      new_version: ${{ steps.check.outputs.new_version }}
-    steps:
-      - name: Checkout fork
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check for new upstream release
-        id: check
-        run: |
-          set +e  # Don't exit on error immediately
-
-          git remote add upstream https://github.com/aseprite/aseprite.git
-          # Fetch everything from upstream
-          git fetch upstream
-          git fetch upstream --tags
-
-          # Get latest upstream tag with better parsing
-          UPSTREAM_TAG=$(git ls-remote --tags upstream | \
-            grep -v '\^{}' | \
-            grep -v 'beta' | \
-            awk '{print $2}' | \
-            sed 's|refs/tags/||' | \
-            sort -V | \
-            tail -n1)
-
-          # Get latest local tag
-          LOCAL_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
-          # If no upstream tag found, exit gracefully
-          if [ -z "$UPSTREAM_TAG" ]; then
-            echo "⚠️ No upstream tags found, skipping build"
-            echo "should_build=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # If no local tag, this is first build
-          if [ -z "$LOCAL_TAG" ]; then
-            LOCAL_TAG="v0.0.0"
-          fi
-
-          echo "Upstream: $UPSTREAM_TAG"
-          echo "Local: $LOCAL_TAG"
-
-          if [ "$UPSTREAM_TAG" != "$LOCAL_TAG" ]; then
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "new_version=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
-            echo "✅ New version found: $UPSTREAM_TAG"
-          else
-            echo "should_build=false" >> $GITHUB_OUTPUT
-            echo "⏭️ No new version"
-          fi
-
-      - name: Sync with upstream
-        if: steps.check.outputs.should_build == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Fetch both origin and upstream
-          git fetch origin
-          git fetch upstream
-
-          # Make sure we're on the latest main
-          git checkout main
-          git reset --hard origin/main
-
-          # Merge upstream main
-          git merge upstream/main --allow-unrelated-histories -X theirs -m "Sync with upstream ${{ steps.check.outputs.new_version }}" || {
-            echo "Merge conflict, resolving..."
-            git merge --abort 2>/dev/null || true
-            git reset --hard origin/main
-            git merge upstream/main --allow-unrelated-histories --strategy-option theirs -X theirs -m "Sync with upstream ${{ steps.check.outputs.new_version }}"
-          }
-
-          # Keep our workflows
-          git checkout origin/main -- .github/workflows/ 2>/dev/null || true
-
-          # Commit if there are changes
-          if ! git diff --staged --quiet 2>/dev/null; then
-            git commit -m "Keep custom workflows" || true
-          fi
-
-          # Push with force to avoid conflicts
-          git push origin main --force
-
-          # Push the new tag
-          git tag -f ${{ steps.check.outputs.new_version }}
-          git push origin ${{ steps.check.outputs.new_version }} --force
+  # check-and-build:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     should_build: ${{ steps.check.outputs.should_build }}
+  #     new_version: ${{ steps.check.outputs.new_version }}
+  #   steps:
+  #     - name: Checkout fork
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+  #
+  #     - name: Check for new upstream release
+  #       id: check
+  #       run: |
+  #         set +e  # Don't exit on error immediately
+  #
+  #         git remote add upstream https://github.com/aseprite/aseprite.git
+  #         # Fetch everything from upstream
+  #         git fetch upstream
+  #         git fetch upstream --tags
+  #
+  #         # Get latest upstream tag with better parsing
+  #         UPSTREAM_TAG=$(git ls-remote --tags upstream | \
+  #           grep -v '\^{}' | \
+  #           grep -v 'beta' | \
+  #           awk '{print $2}' | \
+  #           sed 's|refs/tags/||' | \
+  #           sort -V | \
+  #           tail -n1)
+  #
+  #         # Get latest local tag
+  #         LOCAL_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+  #
+  #         # If no upstream tag found, exit gracefully
+  #         if [ -z "$UPSTREAM_TAG" ]; then
+  #           echo "⚠️ No upstream tags found, skipping build"
+  #           echo "should_build=false" >> $GITHUB_OUTPUT
+  #           exit 0
+  #         fi
+  #
+  #         # If no local tag, this is first build
+  #         if [ -z "$LOCAL_TAG" ]; then
+  #           LOCAL_TAG="v0.0.0"
+  #         fi
+  #
+  #         echo "Upstream: $UPSTREAM_TAG"
+  #         echo "Local: $LOCAL_TAG"
+  #
+  #         if [ "$UPSTREAM_TAG" != "$LOCAL_TAG" ]; then
+  #           echo "should_build=true" >> $GITHUB_OUTPUT
+  #           echo "new_version=$UPSTREAM_TAG" >> $GITHUB_OUTPUT
+  #           echo "✅ New version found: $UPSTREAM_TAG"
+  #         else
+  #           echo "should_build=false" >> $GITHUB_OUTPUT
+  #           echo "⏭️ No new version"
+  #         fi
+  #
+  #     - name: Sync with upstream
+  #       if: steps.check.outputs.should_build == 'true'
+  #       run: |
+  #         git config user.name "github-actions[bot]"
+  #         git config user.email "github-actions[bot]@users.noreply.github.com"
+  #
+  #         # Fetch both origin and upstream
+  #         git fetch origin
+  #         git fetch upstream
+  #
+  #         # Make sure we're on the latest main
+  #         git checkout main
+  #         git reset --hard origin/main
+  #
+  #         # Merge upstream main
+  #         git merge upstream/main --allow-unrelated-histories -X theirs -m "Sync with upstream ${{ steps.check.outputs.new_version }}" || {
+  #           echo "Merge conflict, resolving..."
+  #           git merge --abort 2>/dev/null || true
+  #           git reset --hard origin/main
+  #           git merge upstream/main --allow-unrelated-histories --strategy-option theirs -X theirs -m "Sync with upstream ${{ steps.check.outputs.new_version }}"
+  #         }
+  #
+  #         # Keep our workflows
+  #         git checkout origin/main -- .github/workflows/ 2>/dev/null || true
+  #
+  #         # Commit if there are changes
+  #         if ! git diff --staged --quiet 2>/dev/null; then
+  #           git commit -m "Keep custom workflows" || true
+  #         fi
+  #
+  #         # Push with force to avoid conflicts
+  #         git push origin main --force
+  #
+  #         # Push the new tag
+  #         git tag -f ${{ steps.check.outputs.new_version }}
+  #         git push origin ${{ steps.check.outputs.new_version }} --force
 
   build-and-release:
     needs: check-and-build
