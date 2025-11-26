@@ -70,20 +70,32 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Fetch both origin and upstream
+          git fetch origin
+          git fetch upstream
+
+          # Make sure we're on the latest main
+          git checkout main
+          git reset --hard origin/main
+
           # Merge upstream main
-          git merge upstream/main --allow-unrelated-histories -X theirs || {
+          git merge upstream/main --allow-unrelated-histories -X theirs -m "Sync with upstream ${{ steps.check.outputs.new_version }}" || {
             echo "Merge conflict, resolving..."
-            git checkout --theirs .
-            git add .
-            git commit -m "Sync with upstream ${{ steps.check.outputs.new_version }}"
+            git merge --abort 2>/dev/null || true
+            git reset --hard origin/main
+            git merge upstream/main --allow-unrelated-histories --strategy-option theirs -X theirs -m "Sync with upstream ${{ steps.check.outputs.new_version }}"
           }
 
           # Keep our workflows
-          git checkout HEAD -- .github/workflows/ 2>/dev/null || true
-          git add .github/workflows/ 2>/dev/null || true
-          git commit --amend --no-edit 2>/dev/null || true
+          git checkout origin/main -- .github/workflows/ 2>/dev/null || true
 
-          git push origin main
+          # Commit if there are changes
+          if ! git diff --staged --quiet 2>/dev/null; then
+            git commit -m "Keep custom workflows" || true
+          fi
+
+          # Push with force to avoid conflicts
+          git push origin main --force
 
           # Push the new tag
           git tag -f ${{ steps.check.outputs.new_version }}
