@@ -159,25 +159,49 @@ jobs:
 
       - name: Create AppImage
         run: |
+          # Debug: List what we have
+          echo "=== Checking build output ==="
+          ls -la build/ || echo "No build directory"
+          ls -la build/bin/ || echo "No build/bin directory"
+
           # Create AppDir structure
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
-          # Find the aseprite binary
-          ASEPRITE_BIN=$(find build -name "aseprite" -type f -executable | head -n1)
-
-          if [ -z "$ASEPRITE_BIN" ]; then
-            echo "❌ Aseprite binary not found!"
-            exit 1
+          # Try multiple locations for aseprite binary
+          if [ -f "build/bin/aseprite" ]; then
+            ASEPRITE_BIN="build/bin/aseprite"
+            echo "✅ Found binary at: $ASEPRITE_BIN"
+          elif [ -f "build/aseprite" ]; then
+            ASEPRITE_BIN="build/aseprite"
+            echo "✅ Found binary at: $ASEPRITE_BIN"
+          else
+            ASEPRITE_BIN=$(find build -name "aseprite" -type f 2>/dev/null | head -n1)
+            if [ -z "$ASEPRITE_BIN" ]; then
+              echo "❌ Aseprite binary not found!"
+              echo "=== Full build directory tree ==="
+              find build -type f 2>/dev/null || true
+              exit 1
+            fi
+            echo "✅ Found binary at: $ASEPRITE_BIN"
           fi
 
-          # Copy binary
-          cp -r build/bin/* AppDir/usr/bin/ || cp $ASEPRITE_BIN AppDir/usr/bin/
+          # Make sure it's executable
+          chmod +x "$ASEPRITE_BIN"
+
+          # Copy everything from build/bin to AppDir
+          if [ -d "build/bin" ]; then
+            cp -r build/bin/* AppDir/usr/bin/
+          else
+            cp "$ASEPRITE_BIN" AppDir/usr/bin/aseprite
+          fi
 
           # Copy data directory if exists
           if [ -d "build/bin/data" ]; then
             cp -r build/bin/data AppDir/usr/bin/
+          elif [ -d "data" ]; then
+            cp -r data AppDir/usr/bin/
           fi
 
           # Create desktop file
@@ -193,11 +217,21 @@ jobs:
           # Get icon if exists
           if [ -f "data/icons/ase256.png" ]; then
             cp data/icons/ase256.png AppDir/usr/share/icons/hicolor/256x256/apps/aseprite.png
+          elif [ -f "build/bin/data/icons/ase256.png" ]; then
+            cp build/bin/data/icons/ase256.png AppDir/usr/share/icons/hicolor/256x256/apps/aseprite.png
           fi
+
+          # Verify AppDir has the binary
+          if [ ! -f "AppDir/usr/bin/aseprite" ]; then
+            echo "❌ Failed to copy aseprite to AppDir"
+            ls -la AppDir/usr/bin/
+            exit 1
+          fi
+
+          echo "✅ AppDir ready, creating AppImage..."
 
           # Create AppImage without version in filename
           ./appimagetool-x86_64.AppImage AppDir aseprite-x86_64.AppImage
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
