@@ -255,8 +255,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   cleanup-old-releases:
-    needs: [check-and-build, build-and-release]
-    if: needs.check-and-build.outputs.should_build == 'true'
+    # needs: [check-and-build, build-and-release]
+    needs: [build-and-release]
+    # if: needs.check-and-build.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
