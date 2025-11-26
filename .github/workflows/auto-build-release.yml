@@ -102,8 +102,8 @@ jobs:
   #         git push origin ${{ steps.check.outputs.new_version }} --force
 
   build-and-release:
-    needs: check-and-build
-    if: needs.check-and-build.outputs.should_build == 'true'
+    # needs: check-and-build
+    # if: needs.check-and-build.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
