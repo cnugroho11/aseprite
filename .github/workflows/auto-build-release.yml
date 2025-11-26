@@ -90,7 +90,7 @@ jobs:
           # Make build.sh executable if it exists
           if [ -f build.sh ]; then
             chmod +x build.sh
-            ./build.sh
+            echo "U" | ./build.sh --norun
           else
             # Fallback to manual build if build.sh doesn't exist
             mkdir -p build
