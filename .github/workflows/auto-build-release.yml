@@ -117,8 +117,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            cmake ninja-build libx11-dev libxcursor-dev libxi-dev \
-            libgl1-mesa-dev libfontconfig1-dev libharfbuzz-dev \
+            cmake ninja-build clang libx11-dev libxcursor-dev libxi-dev \
+            libxrandr-dev libgl1-mesa-dev libfontconfig1-dev libharfbuzz-dev \
             libfreetype6-dev libgif-dev libjpeg-dev libpng-dev \
             libwebp-dev libtiff-dev zlib1g-dev fuse libfuse2
 
@@ -129,25 +129,29 @@ jobs:
           wget -q https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-Linux-Release-x64-libc++.zip
           unzip -q Skia-Linux-Release-x64-libc++.zip
 
-      - name: Build using build.sh
+      - name: Build Aseprite
         run: |
-          # Make build.sh executable if it exists
-          if [ -f build.sh ]; then
-            chmod +x build.sh
-            echo "U" | ./build.sh --norun
-          else
-            # Fallback to manual build if build.sh doesn't exist
-            mkdir -p build
-            cd build
-            cmake -G Ninja \
-              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-              -DCMAKE_INSTALL_PREFIX=/usr \
-              -DLAF_BACKEND=skia \
-              -DSKIA_DIR=$HOME/deps/skia \
-              -DSKIA_LIBRARY_DIR=$HOME/deps/skia/out/Release-x64 \
-              ..
-            ninja aseprite
-          fi
+          mkdir -p build
+          cd build
+
+          export CC=clang
+          export CXX=clang++
+
+          cmake \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_FLAGS:STRING=-stdlib=libstdc++ \
+            -DCMAKE_EXE_LINKER_FLAGS:STRING=-stdlib=libstdc++ \
+            -DLAF_BACKEND=skia \
+            -DSKIA_DIR=$HOME/deps/skia \
+            -DSKIA_LIBRARY_DIR=$HOME/deps/skia/out/Release-x64 \
+            -DSKIA_LIBRARY=$HOME/deps/skia/out/Release-x64/libskia.a \
+            -G Ninja \
+            ..
+
+          ninja aseprite
+
+          echo "✅ Build complete"
+          ls -lh bin/aseprite
 
       - name: Download linuxdeploy and appimagetool
         run: |
@@ -159,49 +163,31 @@ jobs:
 
       - name: Create AppImage
         run: |
-          # Debug: List what we have
-          echo "=== Checking build output ==="
-          ls -la build/ || echo "No build directory"
-          ls -la build/bin/ || echo "No build/bin directory"
-
           # Create AppDir structure
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
-          # Try multiple locations for aseprite binary
-          if [ -f "build/bin/aseprite" ]; then
-            ASEPRITE_BIN="build/bin/aseprite"
-            echo "✅ Found binary at: $ASEPRITE_BIN"
-          elif [ -f "build/aseprite" ]; then
-            ASEPRITE_BIN="build/aseprite"
-            echo "✅ Found binary at: $ASEPRITE_BIN"
-          else
-            ASEPRITE_BIN=$(find build -name "aseprite" -type f 2>/dev/null | head -n1)
-            if [ -z "$ASEPRITE_BIN" ]; then
-              echo "❌ Aseprite binary not found!"
-              echo "=== Full build directory tree ==="
-              find build -type f 2>/dev/null || true
-              exit 1
-            fi
-            echo "✅ Found binary at: $ASEPRITE_BIN"
+          # Binary should be at build/bin/aseprite after ninja build
+          if [ ! -f "build/bin/aseprite" ]; then
+            echo "❌ Aseprite binary not found at build/bin/aseprite!"
+            echo "Checking what's in build/:"
+            ls -la build/
+            echo "Checking what's in build/bin/:"
+            ls -la build/bin/ 2>/dev/null || echo "build/bin doesn't exist"
+            exit 1
           fi
 
-          # Make sure it's executable
-          chmod +x "$ASEPRITE_BIN"
+          echo "✅ Found binary at build/bin/aseprite"
 
-          # Copy everything from build/bin to AppDir
-          if [ -d "build/bin" ]; then
-            cp -r build/bin/* AppDir/usr/bin/
-          else
-            cp "$ASEPRITE_BIN" AppDir/usr/bin/aseprite
-          fi
+          # Copy binary and make executable
+          cp build/bin/aseprite AppDir/usr/bin/aseprite
+          chmod +x AppDir/usr/bin/aseprite
 
-          # Copy data directory if exists
+          # Copy data directory
           if [ -d "build/bin/data" ]; then
             cp -r build/bin/data AppDir/usr/bin/
-          elif [ -d "data" ]; then
-            cp -r data AppDir/usr/bin/
+            echo "✅ Copied data directory"
           fi
 
           # Create desktop file
@@ -214,24 +200,24 @@ jobs:
           Categories=Graphics;
           EOF
 
-          # Get icon if exists
+          # Copy icon
           if [ -f "data/icons/ase256.png" ]; then
             cp data/icons/ase256.png AppDir/usr/share/icons/hicolor/256x256/apps/aseprite.png
+            echo "✅ Copied icon"
           elif [ -f "build/bin/data/icons/ase256.png" ]; then
             cp build/bin/data/icons/ase256.png AppDir/usr/share/icons/hicolor/256x256/apps/aseprite.png
+            echo "✅ Copied icon from build"
           fi
 
-          # Verify AppDir has the binary
-          if [ ! -f "AppDir/usr/bin/aseprite" ]; then
-            echo "❌ Failed to copy aseprite to AppDir"
-            ls -la AppDir/usr/bin/
-            exit 1
-          fi
+          echo "✅ AppDir ready, contents:"
+          ls -lh AppDir/usr/bin/
 
-          echo "✅ AppDir ready, creating AppImage..."
-
-          # Create AppImage without version in filename
+          # Create AppImage
           ./appimagetool-x86_64.AppImage AppDir aseprite-x86_64.AppImage
+
+          echo "✅ AppImage created successfully"
+          ls -lh aseprite-x86_64.AppImage
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
